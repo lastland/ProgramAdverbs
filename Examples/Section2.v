@@ -360,14 +360,8 @@ Inductive eq_ReifiedApp {E R} : ReifiedApp E R -> ReifiedApp E R -> Prop :=
   | RightIdentity : forall {X} (a: ReifiedApp E R) (b: X) f,
       (forall x, (fun x _ => x) x b = f x b) ->
       eq_ReifiedApp (LiftA2 f a (Pure b)) a
-  | Associativity : forall {X Y Z} a b c (f : X -> Y -> Z -> R) g,
-      (forall x y z, f x y z = g y z x) ->
-      eq_ReifiedApp (LiftA2 id (LiftA2 f a b) c) (LiftA2 (flip id) a (LiftA2 g b c))
-  | Naturality : forall {X Y Z T P} a b c p (q : X -> Y -> T) f (g : Y -> Z -> P),
-      (forall x y z, p (q x y) z = f x (g y z)) ->
-      eq_ReifiedApp (LiftA2 p (LiftA2 q a b) c) (LiftA2 f a (LiftA2 g b c))
   (* not included in "free" applicative, but can be added *)
-  | LiftA2_Sym : forall {X Y} (f:X -> Y -> R) h v g,
+  | LiftA2_Comm : forall {X Y} (f:X -> Y -> R) h v g,
       (forall x y, f x y = h y x) ->
       eq_ReifiedApp (LiftA2 f v g) (LiftA2 h g v).
 (* end eq_ReifiedApp *)
@@ -386,7 +380,7 @@ Example lemma3 : forall x y,  eq_ReifiedApp (toReifiedApp (And x y)) (toReifiedA
 Proof.
 intros.
 cbn.
-eapply LiftA2_Sym.
+eapply LiftA2_Comm.
 intros. destruct x0; destruct y0; auto.
 Qed.
 
@@ -436,6 +430,61 @@ Proof.
   rewrite <- plus_n_O.
   apply Nat.pow_le_mono_r; auto.
   apply Nat.le_max_r.
+Qed.
+
+Definition CostSem A := (var -> (bool * nat)%type) -> (A * nat)%type.
+
+Definition pureC {A} (a : A) : CostSem A := fun m => (a, 0).
+
+Definition parC {A B C}
+  (f : A -> B -> C) (a : CostSem A) (b : CostSem B) : CostSem C :=
+  fun m => match a m, b m with
+        | (a', n1), (b', n2) =>
+            let n := match n1, n2 with
+                     (* No effect on one side, go through with no extra cost *)
+                     | O, m => m
+                     | m, O => m
+                     (* Effects on both sides, computation required *)
+                     | m1, m2 => 1 + max m1 m2
+                     end in
+            (f a' b', n)
+        end.
+
+Definition interpCost {E A} (a : ReifiedApp E A)
+  (interpE : forall A, E A -> CostSem A) : CostSem A :=
+  let fix go {A} (a : ReifiedApp E A) :=
+    match a with
+    | EmbedA e => interpE _ e
+    | Pure a => pureC a
+    | LiftA2 f a b => parC f (go a) (go b)
+    end in
+  go a.
+
+Definition interpDataEff (A : Type) (e : DataEff A) : CostSem A :=
+  match e with
+  | GetData v => fun m => m v
+  end.
+
+(* Cannot show, as desired. *)
+Theorem assoc : forall (x y a b : var),
+    eq_ReifiedApp (toReifiedApp (And (And (And (Var x) (Var y)) (Var a)) (Var b)))
+      (toReifiedApp (And (And (Var x) (Var y)) (And (Var a) (Var b)))).
+Proof.
+  intros. cbn.
+Abort.
+
+(* Indeed, there exists a cost semantics where associativity is not desired. *)
+Theorem notAssoc : forall (x y a b : var) (env : var -> bool),
+  exists (c : var -> nat), forall m,
+    (forall v, m v = (env v, c v)) ->
+    interpCost (toReifiedApp
+                  (And (And (And (Var x) (Var y)) (Var a)) (Var b))) (@interpDataEff) m <>
+      interpCost (toReifiedApp
+                    (And (And (Var x) (Var y)) (And (Var a) (Var b)))) (@interpDataEff) m.
+Proof.
+  intros. cbn. unfold parC, pureC, interpDataEff.
+  exists (fun _ => 1). intros.
+  rewrite !H. intro. inversion H0.
 Qed.
 
 End Applicative.
