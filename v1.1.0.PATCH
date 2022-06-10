@@ -1,0 +1,620 @@
+diff --git a/Adverb/Composable/Adverb.v b/Adverb/Composable/Adverb.v
+index ccb2b91..f73a0a4 100644
+--- a/Adverb/Composable/Adverb.v
++++ b/Adverb/Composable/Adverb.v
+@@ -14,6 +14,19 @@ From Coq Require Import
+ Class AdverbAlg (D : (Set -> Set) -> Set -> Set) (R : Set -> Set) (name : nat) :=
+   { adverbAlg : Alg1 D R }.
+ 
++(** A helper method to interpret sums of a composed adverb by
++    interpreting each individual adverb. *)
++
++#[export] Instance AdverbAlgSum
++         (D1 D2 : (Set -> Set) -> Set -> Set) (R : Set -> Set) (name : nat)
++         `{AdverbAlg D1 R name} `{AdverbAlg D2 R name} :
++  AdverbAlg (D1 ⊕ D2) R name :=
++  {| adverbAlg := fun _ a => match a with
++                          | Inl1 a => adverbAlg _ a
++                          | Inr1 a => adverbAlg _ a
++                          end
++  |}.
++
+ (* begin composable_adverb *)
+ Class ComposableAdverb (F : (Set -> Set) -> Set -> Set) :=
+   { Bisim {E} `{F -≪ E} `{Functor1 E} :
+diff --git a/Claims.markdown b/Claims.markdown
+index f80a795..82fa831 100644
+--- a/Claims.markdown
++++ b/Claims.markdown
+@@ -42,12 +42,10 @@ All the key definitions in this section are in `Examples/Section2.v`.
+ 
+ ## Section 4
+ 
+-- Definition of ⊕: `Fix/SumE.v`, the definition `Sum1`.
+-- Fig. 9: `Fix/Fix.v`, with the same names as in the paper.
+-- Fig. 10: in individual files under `Adverb/Composable` directory.
+-- Fig. 11: the type classes are in individual files under `ClassesOfFunctors`
+-  directory; the adverbs are in individual files under `Adverb/Composable`
+-  directory.
++- Fig. 9: Proofs for the properties are in `Fix/SumETheories.v`.
++- Fig 10(a): `Fix/Fix.v`, with the same names as in the paper.
++- Fig 10(b): `Fix/SumE.v`, with the same names as in the paper.
++- Fig. 11(a) and (b): in individual files under `Adverb/Composable` directory.
+ - Fig. 12: `Adverb/Repeatedly.v` and `Adverb/Nondeterministically`, definitions
+   `RepeatedlyBisim`, `RepeatedlyRefines`, `NondeterministicallyBisim`, and
+   `NondeterministicallyRefines`.
+@@ -64,13 +62,19 @@ All the key definitions in this section are in `Examples/Section2.v`.
+ ## Section 5
+ 
+ - Section 5.1: `Examples/Haxl.v`.
++- Fig. 14a and b: `Examples/Haxl.v`. The type class `AdverbAlg` and
++  instance `AdverbAlgSum` are in a separate file
++  `Adverb/Composable/Adverb.v`.
+ - Section 5.2: `Examples/NetImp.v`.
+ - The NetImp language: `Examples/NetImp.v`, definitions `exp`, `ev`, `command`.
+-- The specification language: `Examples/NetImp.v`, definition `commandS`.
+-- Fig. 14: `Examples/Haxl.v`.
++- The NetSpec language: `Examples/NetImp.v`, definition `commandS`.
+ - Fig. 15(a): `Examples/NetImp.v`, definition `process`.
+ - Fig. 15(b): `Examples/NetImp.v`, definition `processSpec`.
+-- Tlön embeddings of the networked server: `Examples/NetImp.v`, definitions
++- Tlön embeddings of NetImp and NetSpec: `Examples/NetImp.v`, definitions
+   `denote_command` and `denote_command_Spec`
+-- Refinement proofs of the networked server: `Examples/NetImp.v`, theorems
+-  `refinesL1`-`refinesL4`.
++- Fig. 16: `Examples/NetImp.v`: `L1` is called `process_l1`, `L2` is
++  called process `process_l2`, and `L3` is called `process_l3`. We
++  define a `process_l4` as well in the Coq file, but it is just
++  `spec`, as shown by theorem `fourth_is_spec`.
++- Theorem 5.1: `Examples/NetImp.v`, theorems `reinfesL1`, `refinesL2`,
++  `refinesL3`, and `refinesL4`.
+diff --git a/Examples/Haxl.v b/Examples/Haxl.v
+index cd82f33..46bfac7 100644
+--- a/Examples/Haxl.v
++++ b/Examples/Haxl.v
+@@ -64,31 +64,18 @@ Definition LanAdverbs := PurelyAdv ⊕ StaticallyAdv ⊕ DynamicallyAdv ⊕ Data
+ 
+ Definition Lan := Fix1 LanAdverbs.
+ 
+-(** A helper method to interpret sums of a composed adverb by
+-    interpreting each individual adverb. *)
+-
+-#[global] Instance AdverbAlgSum
+-         (D1 D2 : (Set -> Set) -> Set -> Set) (R : Set -> Set) (name : nat)
+-         `{AdverbAlg D1 R name} `{AdverbAlg D2 R name} :
+-  AdverbAlg (D1 ⊕ D2) R name :=
+-  {| adverbAlg := fun _ a => match a with
+-                          | Inl1 a => adverbAlg _ a
+-                          | Inr1 a => adverbAlg _ a
+-                          end
+-  |}.
+-
+-(** * The DB monad
++(** * The Update monad
+ 
+     As shown in Fig. 14. *)
+ 
+-Definition DB (A : Set) : Set := ((var -> val) -> A * nat).
++Definition Update (A : Set) : Set := ((var -> val) -> A * nat).
+ 
+ Open Scope nat_scope.
+ 
+-Definition retDB {A : Set} (a : A) : DB A := fun map => (a, 0).
++Definition retUpdate {A : Set} (a : A) : Update A := fun map => (a, 0).
+ 
+-Definition bindDB {A B : Set}
+-           (m : DB A) (k : A -> DB B) : DB B :=
++Definition bindUpdate {A B : Set}
++           (m : Update A) (k : A -> Update B) : Update B :=
+   fun map =>
+     match m map with
+     | (i, n) =>
+@@ -97,20 +84,20 @@ Definition bindDB {A B : Set}
+       end
+     end.
+ 
+-Definition parDB {A B C : Set}
+-           (f : A -> B -> C) (a : DB A) (b : DB B) : DB C :=
++Definition parUpdate {A B C : Set}
++           (f : A -> B -> C) (a : Update A) (b : Update B) : Update C :=
+   fun map =>
+     match (a map, b map) with
+     | ((a, n1), (b, n2)) => (f a b, Nat.max n1 n2)
+     end.
+ 
+-Definition getDB (v : var) : DB val :=
++Definition getUpdate (v : var) : Update val :=
+   fun map => (map v, 1).
+ 
+ Goal forall {A B C : Set} (f : A -> B -> C) a b,
+-    forall m, parDB f a b m = parDB (flip f) b a m.
++    forall m, parUpdate f a b m = parUpdate (flip f) b a m.
+ Proof.
+-  intros. unfold parDB.
++  intros. unfold parUpdate.
+   remember (a m) as am. remember (b m) as bm.
+   destruct am; destruct bm. unfold flip.
+   f_equal. apply Nat.max_comm.
+@@ -128,41 +115,41 @@ Definition numFetchName : nat := 0.
+     compose their interpretation together (automatically composed via
+     the [AdverbAlgSum] instance shown earlier). *)
+ 
+-#[global] Instance NumFetchS : AdverbAlg StaticallyAdv DB numFetchName :=
++#[global] Instance NumFetchS : AdverbAlg StaticallyAdv Update numFetchName :=
+   {| adverbAlg := fun _ c =>
+                     match c with
+                     | LiftA2 f a b =>
+-                      parDB f a b
++                      parUpdate f a b
+                     end
+   |}.
+ 
+-#[global] Instance NumFetchD : AdverbAlg DynamicallyAdv DB numFetchName :=
++#[global] Instance NumFetchD : AdverbAlg DynamicallyAdv Update numFetchName :=
+   {| adverbAlg := fun _ c =>
+                     match c with
+                     | Bind m k =>
+-                      bindDB m k
++                      bindUpdate m k
+                     end
+   |}.
+ 
+-#[global] Instance NumFetchP : AdverbAlg PurelyAdv DB numFetchName :=
++#[global] Instance NumFetchP : AdverbAlg PurelyAdv Update numFetchName :=
+   {| adverbAlg := fun _ c =>
+                     match c with
+-                    | Pure a => retDB a
++                    | Pure a => retUpdate a
+                     end
+   |}.
+ 
+-#[global] Instance NumFetchData : AdverbAlg DataEff DB numFetchName :=
++#[global] Instance NumFetchData : AdverbAlg DataEff Update numFetchName :=
+   {| adverbAlg := fun _ c =>
+-                    match c in (DataEff _ N) return (DB N) with
+-                    | GetData v => getDB v
++                    match c in (DataEff _ N) return (Update N) with
++                    | GetData v => getUpdate v
+                     end
+   |}.
+ 
+ (** The composed interpreter. *)
+ 
+-Definition numFetchAlg : Alg1 LanAdverbs DB := adverbAlg (name := numFetchName).
++Definition numFetchAlg : Alg1 LanAdverbs Update := adverbAlg (name := numFetchName).
+ 
+-Definition numFetch {A : Set} : Lan A -> DB A := foldFix1 (@numFetchAlg).
++Definition numFetch {A : Set} : Lan A -> Update A := foldFix1 (@numFetchAlg).
+ 
+ (** * Examples. *)
+ 
+diff --git a/Examples/NetImp.v b/Examples/NetImp.v
+index 4faa3a8..85988f7 100644
+--- a/Examples/NetImp.v
++++ b/Examples/NetImp.v
+@@ -95,15 +95,13 @@ Definition process_test : command :=
+ Definition process : command :=
+   avar newconn ::<- accept ;;
+   IFB (not (beq (deref newconn) (expr 0))) THEN
+-      avar newconn_rec ::= record (deref newconn) (expr WRITING) ;;
++      avar newconn_rec ::= record (deref newconn) (expr READING) ;;
+       conns ::++ newconn_rec
+   END ;;
+   FOR y IN conns DO
+       IFB (beq (proj stateP y) (expr WRITING)) THEN
+           avar r ::<- write (proj idP y) (deref s) ;;
+-          IFB (beq (deref r) (expr 0)) THEN
+-              deref y ::=state expr CLOSED
+-          END
++          deref y ::=state expr CLOSED
+       END ;;
+       IFB (beq (proj stateP y) (expr READING)) THEN
+           avar r ::<- read (proj idP y) ;;
+@@ -388,7 +386,7 @@ Inductive commandS : Set :=
+ | UpdateProjS : nat -> exp (var Connection) -> exp nat -> commandS
+ | SeqS : commandS -> commandS -> commandS
+ | IfS : exp bool -> commandS -> commandS -> commandS
+-| StarS : commandS -> commandS
++| SomeS : commandS -> commandS
+ | OrS : commandS -> commandS -> commandS
+ | OneOfS : var (list (var Connection)) ->
+            var (var Connection) -> commandS -> commandS
+@@ -413,15 +411,13 @@ Delimit Scope spec_scope with spec.
+ Definition processSpec' : commandS :=
+   OrS (avar newconn ::<- accept ;;
+       IFB (not (beq (deref newconn) (expr 0))) THEN
+-          avar newconn_rec ::= record (deref newconn) (expr WRITING) ;;
++          avar newconn_rec ::= record (deref newconn) (expr READING) ;;
+           conns ::++ newconn_rec
+       END)
+      (OneOfS (conns) y (
+           OrS (IFB (beq (proj stateP y) (expr WRITING)) THEN
+                   avar r ::<- write (proj idP y) (deref s) ;;
+-                  IFB (beq (deref r) (expr 0)) THEN
+-                      deref y ::=state expr CLOSED
+-                  END
++                  deref y ::=state expr CLOSED
+               END)
+              (IFB (beq (proj stateP y) (expr READING)) THEN
+                   avar r ::<- read (proj idP y) ;;
+@@ -433,7 +429,7 @@ Definition processSpec' : commandS :=
+                   END
+                   END))).
+ 
+-Definition processSpec := StarS processSpec'.
++Definition processSpec := SomeS processSpec'.
+ 
+ (** * Adverbs for the specification language.
+ 
+@@ -550,7 +546,7 @@ Fixpoint denote_command_Spec (c : commandS) : Spec unit.
+   - (* If *)
+     exact (@denote_expS _ e >>= (fun b => if b then denote_command_Spec c1
+                                            else denote_command_Spec c2)).
+-  - (* Star *)
++  - (* Some *)
+     exact (@kleenePlus _ _ _ _ _ (denote_command_Spec c)).
+   - (* Or *)
+     exact (@kleenePlus _ _ _ _ _ (fplus (denote_command_Spec c1) (denote_command_Spec c2))).
+@@ -604,16 +600,14 @@ Close Scope spec_scope.
+ Definition fragmentA : command :=
+   avar newconn ::<- accept ;;
+   IFB (not (beq (deref newconn) (expr 0))) THEN
+-      avar newconn_rec ::= record (deref newconn) (expr WRITING) ;;
++      avar newconn_rec ::= record (deref newconn) (expr READING) ;;
+       conns ::++ newconn_rec
+   END.
+ 
+ Definition fragmentB : command :=
+   IFB (beq (proj stateP y) (expr WRITING)) THEN
+     avar r ::<- write (proj idP y) (deref s) ;;
+-    IFB (beq (deref r) (expr 0)) THEN
+-      deref y ::=state expr CLOSED
+-    END
++    deref y ::=state expr CLOSED
+   END.
+ 
+ Definition fragmentC : command :=
+@@ -676,16 +670,14 @@ Open Scope spec_scope.
+ Definition fragmentAS : commandS :=
+   avar newconn ::<- accept ;;
+   IFB (not (beq (deref newconn) (expr 0))) THEN
+-      avar newconn_rec ::= record (deref newconn) (expr WRITING) ;;
++      avar newconn_rec ::= record (deref newconn) (expr READING) ;;
+       conns ::++ newconn_rec
+   END.
+ 
+ Definition fragmentBS : commandS :=
+   IFB (beq (proj stateP y) (expr WRITING)) THEN
+     avar r ::<- write (proj idP y) (deref s) ;;
+-    IFB (beq (deref r) (expr 0)) THEN
+-      deref y ::=state expr CLOSED
+-    END
++    deref y ::=state expr CLOSED
+   END.
+ 
+ Definition fragmentCS : commandS :=
+@@ -828,7 +820,7 @@ Qed.
+ (** * The fourth layer. *)
+ 
+ Definition process_l4 :=
+-  StarS (OrS fragmentAS (OneOfS conns y (OrS fragmentBS fragmentCS))).
++  SomeS (OrS fragmentAS (OneOfS conns y (OrS fragmentBS fragmentCS))).
+ 
+ Lemma refinesL4 :
+   (@denote_command_Spec process_l3) ⊆ (@denote_command_Spec process_l4).
+diff --git a/Examples/Section2.v b/Examples/Section2.v
+index bde0450..c15edd6 100644
+--- a/Examples/Section2.v
++++ b/Examples/Section2.v
+@@ -360,14 +360,8 @@ Inductive eq_ReifiedApp {E R} : ReifiedApp E R -> ReifiedApp E R -> Prop :=
+   | RightIdentity : forall {X} (a: ReifiedApp E R) (b: X) f,
+       (forall x, (fun x _ => x) x b = f x b) ->
+       eq_ReifiedApp (LiftA2 f a (Pure b)) a
+-  | Associativity : forall {X Y Z} a b c (f : X -> Y -> Z -> R) g,
+-      (forall x y z, f x y z = g y z x) ->
+-      eq_ReifiedApp (LiftA2 id (LiftA2 f a b) c) (LiftA2 (flip id) a (LiftA2 g b c))
+-  | Naturality : forall {X Y Z T P} a b c p (q : X -> Y -> T) f (g : Y -> Z -> P),
+-      (forall x y z, p (q x y) z = f x (g y z)) ->
+-      eq_ReifiedApp (LiftA2 p (LiftA2 q a b) c) (LiftA2 f a (LiftA2 g b c))
+   (* not included in "free" applicative, but can be added *)
+-  | LiftA2_Sym : forall {X Y} (f:X -> Y -> R) h v g,
++  | LiftA2_Comm : forall {X Y} (f:X -> Y -> R) h v g,
+       (forall x y, f x y = h y x) ->
+       eq_ReifiedApp (LiftA2 f v g) (LiftA2 h g v).
+ (* end eq_ReifiedApp *)
+@@ -386,7 +380,7 @@ Example lemma3 : forall x y,  eq_ReifiedApp (toReifiedApp (And x y)) (toReifiedA
+ Proof.
+ intros.
+ cbn.
+-eapply LiftA2_Sym.
++eapply LiftA2_Comm.
+ intros. destruct x0; destruct y0; auto.
+ Qed.
+ 
+@@ -438,4 +432,59 @@ Proof.
+   apply Nat.le_max_r.
+ Qed.
+ 
++Definition CostSem A := (var -> (bool * nat)%type) -> (A * nat)%type.
++
++Definition pureC {A} (a : A) : CostSem A := fun m => (a, 0).
++
++Definition parC {A B C}
++  (f : A -> B -> C) (a : CostSem A) (b : CostSem B) : CostSem C :=
++  fun m => match a m, b m with
++        | (a', n1), (b', n2) =>
++            let n := match n1, n2 with
++                     (* No effect on one side, go through with no extra cost *)
++                     | O, m => m
++                     | m, O => m
++                     (* Effects on both sides, computation required *)
++                     | m1, m2 => 1 + max m1 m2
++                     end in
++            (f a' b', n)
++        end.
++
++Definition interpCost {E A} (a : ReifiedApp E A)
++  (interpE : forall A, E A -> CostSem A) : CostSem A :=
++  let fix go {A} (a : ReifiedApp E A) :=
++    match a with
++    | EmbedA e => interpE _ e
++    | Pure a => pureC a
++    | LiftA2 f a b => parC f (go a) (go b)
++    end in
++  go a.
++
++Definition interpDataEff (A : Type) (e : DataEff A) : CostSem A :=
++  match e with
++  | GetData v => fun m => m v
++  end.
++
++(* Cannot show, as desired. *)
++Theorem assoc : forall (x y a b : var),
++    eq_ReifiedApp (toReifiedApp (And (And (And (Var x) (Var y)) (Var a)) (Var b)))
++      (toReifiedApp (And (And (Var x) (Var y)) (And (Var a) (Var b)))).
++Proof.
++  intros. cbn.
++Abort.
++
++(* Indeed, there exists a cost semantics where associativity is not desired. *)
++Theorem notAssoc : forall (x y a b : var) (env : var -> bool),
++  exists (c : var -> nat), forall m,
++    (forall v, m v = (env v, c v)) ->
++    interpCost (toReifiedApp
++                  (And (And (And (Var x) (Var y)) (Var a)) (Var b))) (@interpDataEff) m <>
++      interpCost (toReifiedApp
++                    (And (And (Var x) (Var y)) (And (Var a) (Var b)))) (@interpDataEff) m.
++Proof.
++  intros. cbn. unfold parC, pureC, interpDataEff.
++  exists (fun _ => 1). intros.
++  rewrite !H. intro. inversion H0.
++Qed.
++
+ End Applicative.
+diff --git a/Fix/Fix.v b/Fix/Fix.v
+index 0e094e4..955bdf7 100644
+--- a/Fix/Fix.v
++++ b/Fix/Fix.v
+@@ -44,8 +44,8 @@ Section Fix1.
+ 
+ (** * Definitions. *)
+ 
+-(* begin fix1 *)
+ (* Least fixpoint for program adverbs and effects. *)
++(* begin fix1 *)
+ Definition Alg1 (F : (Set -> Set) -> Set -> Set) (E : Set -> Set) : Type :=
+   forall {A : Set}, F E A -> E A.
+ Definition Fix1 (F : (Set -> Set) -> Set -> Set) (A : Set) :=
+@@ -80,13 +80,12 @@ Section FixRel.
+ 
+ (** * Definitions. *)
+ 
+-(* begin fixRel *)
+ (* Least fixpoint for equivalence relations of program adverbs and effects. *)
++(* begin fixRel *)
+ Definition AlgRel {F : Set -> Set}
+            (R : (forall (A : Set), relation (F A)) -> forall (A : Set), relation (F A))
+            (K : forall (A : Set), relation (F A)) : forall (A : Set), relation (F A) :=
+   fun A (a b : F A) => R K _ a b -> K _ a b.
+-
+ Definition FixRel {F : Set -> Set}
+            (R : (forall (A : Set), relation (F A)) -> forall (A : Set), relation (F A))
+   : forall (A : Set), relation (F A) :=
+diff --git a/Fix/SumE.v b/Fix/SumE.v
+index 7c40053..93e10b9 100644
+--- a/Fix/SumE.v
++++ b/Fix/SumE.v
+@@ -84,38 +84,6 @@ Variables P Q R : (forall (A : Set), relation (F A)) -> forall (A : Set), relati
+ 
+ End InjRelRules.
+ 
+-(** * The composition algebras. *)
+-
+-Definition Sum1_Comm {F G : (Set -> Set) -> Set -> Set}
+-           {E : Set -> Set} {A : Set}
+-           (a : (F ⊕ G) E A) : (G ⊕ F) E A :=
+-  match a with
+-  | Inl1 f => Inr1 f
+-  | Inr1 g => Inl1 g
+-  end.
+-
+-Definition Sum1_Assoc {F G I : (Set -> Set) -> Set -> Set}
+-           {E : Set -> Set} {A : Set}
+-           (a : (F ⊕ G ⊕ I) E A) : ((F ⊕ G) ⊕ I) E A :=
+-  match a with
+-  | Inl1 f => Inl1 (Inl1 f)
+-  | Inr1 b => match b with
+-             | Inl1 g => Inl1 (Inr1 g)
+-             | Inr1 i => Inr1 i
+-             end
+-  end.
+-
+-Definition Sum1_Assoc_inverse {F G I : (Set -> Set) -> Set -> Set}
+-           {E : Set -> Set} {A : Set}
+-           (a : ((F ⊕ G) ⊕ I) E A) : (F ⊕ G ⊕ I) E A :=
+-  match a with
+-  | Inr1 i => Inr1 (Inr1 i)
+-  | Inl1 b => match b with
+-             | Inl1 f => Inl1 f
+-             | Inr1 g => Inr1 (Inl1 g)
+-             end
+-  end.
+-
+ (** * Some other useful rules. *)
+ 
+ Definition Inj1_Sum1_l_rev {F G H} `{F ⊕ G -≪ H} : F -≪ H :=
+diff --git a/Fix/SumETheories.v b/Fix/SumETheories.v
+new file mode 100644
+index 0000000..a402827
+--- /dev/null
++++ b/Fix/SumETheories.v
+@@ -0,0 +1,137 @@
++Set Implicit Arguments.
++Set Maximal Implicit Insertion.
++Set Contextual Implicit.
++
++Require Import GHC.Base.
++
++Require Import Fix.Fix.
++Require Import Fix.SumE.
++
++From Coq Require Import
++  Relation_Definitions
++  RelationClasses
++  FinFun
++.
++
++(** * Theories for ⊕ *)
++
++Definition commMapping {F G : (Set -> Set) -> Set -> Set}
++  {E : Set -> Set} {R : Set} (a : (F ⊕ G) E R) : (G ⊕ F) E R :=
++  match a with
++  | Inl1 f => Inr1 f
++  | Inr1 g => Inl1 g
++  end.
++
++Lemma Bijective__commMapping :
++  forall {F G : (Set -> Set) -> Set -> Set} {E : Set -> Set} {R : Set},
++    Bijective (@commMapping F G E R).
++Proof.
++  intros. exists commMapping. split.
++  - destruct x; cbn; reflexivity.
++  - destruct y; cbn; reflexivity.
++Qed.
++
++Definition assocMapping {F G H : (Set -> Set) -> Set -> Set}
++  {E : Set -> Set} {R : Set} (a : ((F ⊕ G) ⊕ H) E R) : (F ⊕ (G ⊕ H)) E R :=
++  match a with
++  | Inl1 (Inl1 f) => Inl1 f
++  | Inl1 (Inr1 g) => Inr1 (Inl1 g)
++  | Inr1 h => Inr1 (Inr1 h)
++  end.
++
++Lemma Bijective__assocMapping :
++  forall {F G H : (Set -> Set) -> Set -> Set} {E : Set -> Set} {R : Set},
++    Bijective (@assocMapping F G H E R).
++Proof.
++  intros.
++  exists (fun a => match a with
++           | Inl1 f => Inl1 (Inl1 f)
++           | Inr1 (Inl1 g) => Inl1 (Inr1 g)
++           | Inr1 (Inr1 h) => Inr1 h
++           end).
++  split.
++  - destruct x as [[f | g] | h]; cbn; reflexivity.
++  - destruct y as [f | [g | h]]; cbn; reflexivity.
++Qed.
++
++Definition equiv1 (F G : (Set -> Set) -> Set -> Set) :=
++  forall (E : Set -> Set) (R : Set),
++  exists (f : F E R -> G E R), Bijective f.
++
++Instance Equivalence__equiv1 : Equivalence equiv1.
++Proof.
++  constructor.
++  - intros x E R. exists id. exists id.
++    split; reflexivity.
++  - intros x y Hxy E R.
++    specialize (Hxy E R). destruct Hxy as (f & g & Hf & Hg).
++    exists g. exists f. tauto.
++  - intros x y z Hxy Hyz E R.
++    specialize (Hxy E R). specialize (Hyz E R).
++    destruct Hxy as (f & g & Hf & Hg).
++    destruct Hyz as (h & i & Hh & Hi).
++    exists (h ∘ f). exists (g ∘ i). split; unfold "∘"; intros a.
++    + rewrite Hh. apply Hf.
++    + rewrite Hg. apply Hi.
++Qed.
++
++Notation "x ≈ y" := (equiv1 x y) (at level 43, right associativity).
++
++Theorem comm__Sum1 : forall (F G : (Set -> Set) -> Set -> Set),
++    F ⊕ G ≈ G ⊕ F.
++Proof.
++  intros F G E R. eapply ex_intro. apply Bijective__commMapping.
++Qed.
++
++Theorem assoc__Sum1 : forall (F G H : (Set -> Set) -> Set -> Set),
++    (F ⊕ G) ⊕ H ≈ F ⊕ (G ⊕ H).
++Proof.
++  intros F G H E R. eapply ex_intro. apply Bijective__assocMapping.
++Qed.
++
++(** * Theories for ⊎ *)
++
++Definition equivRel {F : Set -> Set}
++  (P Q : (forall (A : Set), relation (F A)) -> forall (A : Set), relation (F A)) :=
++  forall (K : forall (A : Set), relation (F A)) (A : Set) (a b : F A),
++    P K _ a b <-> Q K _ a b.
++
++Instance Equivalence__equivRel {F : Set -> Set} : Equivalence (@equivRel F).
++Proof.
++  constructor.
++  - intros P K A a b. reflexivity.
++  - intros P Q HPQ K A a b. symmetry. apply HPQ.
++  - intros P Q R HPQ HQR K A a b. etransitivity.
++    + apply HPQ.
++    + apply HQR.
++Qed.
++
++Notation "P ⇔ Q" := (equivRel P Q) (at level 43, right associativity).
++
++Theorem comm__SumRel {F : Set -> Set} :
++  forall (P Q : (forall (A : Set), relation (F A)) -> forall (A : Set), relation (F A)),
++    P ⊎ Q ⇔ Q ⊎ P.
++Proof.
++  intros P Q K A a b. split; destruct 1; (left + right); assumption.
++Qed.
++
++Theorem assoc__SumRel {F : Set -> Set} :
++  forall (P Q R : (forall (A : Set), relation (F A)) -> forall (A : Set), relation (F A)),
++    (P ⊎ Q) ⊎ R ⇔ P ⊎ (Q ⊎ R).
++Proof.
++  intros P Q R K A a b. split; intros.
++  all: repeat match goal with
++       | H : context[?P ⊎ ?Q] |- _ =>
++           destruct H
++         end.
++  all: (left + right); (assumption + left + right); assumption.
++Qed.
++
++Theorem idem__SumRel {F : Set -> Set} :
++  forall (P : (forall (A : Set), relation (F A)) -> forall (A : Set), relation (F A)),
++    P ⇔ P ⊎ P.
++Proof.
++  intros P K A a b. split.
++  - left. assumption.
++  - destruct 1; assumption.
++Qed.
+diff --git a/_CoqProject b/_CoqProject
+index a29e659..65421fa 100644
+--- a/_CoqProject
++++ b/_CoqProject
+@@ -14,6 +14,7 @@ Fix/SumE.v
+ Fix/WFFunctor.v
+ Fix/WFInj.v
+ Fix/DistinctSubFunctors.v
++Fix/SumETheories.v
+ 
+ Fix.v
+ 
