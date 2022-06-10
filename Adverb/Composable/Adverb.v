@@ -14,6 +14,19 @@ From Coq Require Import
 Class AdverbAlg (D : (Set -> Set) -> Set -> Set) (R : Set -> Set) (name : nat) :=
   { adverbAlg : Alg1 D R }.
 
+(** A helper method to interpret sums of a composed adverb by
+    interpreting each individual adverb. *)
+
+#[export] Instance AdverbAlgSum
+         (D1 D2 : (Set -> Set) -> Set -> Set) (R : Set -> Set) (name : nat)
+         `{AdverbAlg D1 R name} `{AdverbAlg D2 R name} :
+  AdverbAlg (D1 ⊕ D2) R name :=
+  {| adverbAlg := fun _ a => match a with
+                          | Inl1 a => adverbAlg _ a
+                          | Inr1 a => adverbAlg _ a
+                          end
+  |}.
+
 (* begin composable_adverb *)
 Class ComposableAdverb (F : (Set -> Set) -> Set -> Set) :=
   { Bisim {E} `{F -≪ E} `{Functor1 E} :

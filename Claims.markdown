@@ -42,12 +42,10 @@ All the key definitions in this section are in `Examples/Section2.v`.
 
 ## Section 4
 
-- Definition of ⊕: `Fix/SumE.v`, the definition `Sum1`.
-- Fig. 9: `Fix/Fix.v`, with the same names as in the paper.
-- Fig. 10: in individual files under `Adverb/Composable` directory.
-- Fig. 11: the type classes are in individual files under `ClassesOfFunctors`
-  directory; the adverbs are in individual files under `Adverb/Composable`
-  directory.
+- Fig. 9: Proofs for the properties are in `Fix/SumETheories.v`.
+- Fig 10(a): `Fix/Fix.v`, with the same names as in the paper.
+- Fig 10(b): `Fix/SumE.v`, with the same names as in the paper.
+- Fig. 11(a) and (b): in individual files under `Adverb/Composable` directory.
 - Fig. 12: `Adverb/Repeatedly.v` and `Adverb/Nondeterministically`, definitions
   `RepeatedlyBisim`, `RepeatedlyRefines`, `NondeterministicallyBisim`, and
   `NondeterministicallyRefines`.
@@ -64,13 +62,19 @@ All the key definitions in this section are in `Examples/Section2.v`.
 ## Section 5
 
 - Section 5.1: `Examples/Haxl.v`.
+- Fig. 14a and b: `Examples/Haxl.v`. The type class `AdverbAlg` and
+  instance `AdverbAlgSum` are in a separate file
+  `Adverb/Composable/Adverb.v`.
 - Section 5.2: `Examples/NetImp.v`.
 - The NetImp language: `Examples/NetImp.v`, definitions `exp`, `ev`, `command`.
-- The specification language: `Examples/NetImp.v`, definition `commandS`.
-- Fig. 14: `Examples/Haxl.v`.
+- The NetSpec language: `Examples/NetImp.v`, definition `commandS`.
 - Fig. 15(a): `Examples/NetImp.v`, definition `process`.
 - Fig. 15(b): `Examples/NetImp.v`, definition `processSpec`.
-- Tlön embeddings of the networked server: `Examples/NetImp.v`, definitions
+- Tlön embeddings of NetImp and NetSpec: `Examples/NetImp.v`, definitions
   `denote_command` and `denote_command_Spec`
-- Refinement proofs of the networked server: `Examples/NetImp.v`, theorems
-  `refinesL1`-`refinesL4`.
+- Fig. 16: `Examples/NetImp.v`: `L1` is called `process_l1`, `L2` is
+  called process `process_l2`, and `L3` is called `process_l3`. We
+  define a `process_l4` as well in the Coq file, but it is just
+  `spec`, as shown by theorem `fourth_is_spec`.
+- Theorem 5.1: `Examples/NetImp.v`, theorems `reinfesL1`, `refinesL2`,
+  `refinesL3`, and `refinesL4`.

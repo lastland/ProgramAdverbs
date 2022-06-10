@@ -44,8 +44,8 @@ Section Fix1.
 
 (** * Definitions. *)
 
-(* begin fix1 *)
 (* Least fixpoint for program adverbs and effects. *)
+(* begin fix1 *)
 Definition Alg1 (F : (Set -> Set) -> Set -> Set) (E : Set -> Set) : Type :=
   forall {A : Set}, F E A -> E A.
 Definition Fix1 (F : (Set -> Set) -> Set -> Set) (A : Set) :=
@@ -80,13 +80,12 @@ Section FixRel.
 
 (** * Definitions. *)
 
-(* begin fixRel *)
 (* Least fixpoint for equivalence relations of program adverbs and effects. *)
+(* begin fixRel *)
 Definition AlgRel {F : Set -> Set}
            (R : (forall (A : Set), relation (F A)) -> forall (A : Set), relation (F A))
            (K : forall (A : Set), relation (F A)) : forall (A : Set), relation (F A) :=
   fun A (a b : F A) => R K _ a b -> K _ a b.
-
 Definition FixRel {F : Set -> Set}
            (R : (forall (A : Set), relation (F A)) -> forall (A : Set), relation (F A))
   : forall (A : Set), relation (F A) :=

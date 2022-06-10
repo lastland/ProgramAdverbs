@@ -64,31 +64,18 @@ Definition LanAdverbs := PurelyAdv ⊕ StaticallyAdv ⊕ DynamicallyAdv ⊕ Data
 
 Definition Lan := Fix1 LanAdverbs.
 
-(** A helper method to interpret sums of a composed adverb by
-    interpreting each individual adverb. *)
-
-#[global] Instance AdverbAlgSum
-         (D1 D2 : (Set -> Set) -> Set -> Set) (R : Set -> Set) (name : nat)
-         `{AdverbAlg D1 R name} `{AdverbAlg D2 R name} :
-  AdverbAlg (D1 ⊕ D2) R name :=
-  {| adverbAlg := fun _ a => match a with
-                          | Inl1 a => adverbAlg _ a
-                          | Inr1 a => adverbAlg _ a
-                          end
-  |}.
-
-(** * The DB monad
+(** * The Update monad
 
     As shown in Fig. 14. *)
 
-Definition DB (A : Set) : Set := ((var -> val) -> A * nat).
+Definition Update (A : Set) : Set := ((var -> val) -> A * nat).
 
 Open Scope nat_scope.
 
-Definition retDB {A : Set} (a : A) : DB A := fun map => (a, 0).
+Definition retUpdate {A : Set} (a : A) : Update A := fun map => (a, 0).
 
-Definition bindDB {A B : Set}
-           (m : DB A) (k : A -> DB B) : DB B :=
+Definition bindUpdate {A B : Set}
+           (m : Update A) (k : A -> Update B) : Update B :=
   fun map =>
     match m map with
     | (i, n) =>
@@ -97,20 +84,20 @@ Definition bindDB {A B : Set}
       end
     end.
 
-Definition parDB {A B C : Set}
-           (f : A -> B -> C) (a : DB A) (b : DB B) : DB C :=
+Definition parUpdate {A B C : Set}
+           (f : A -> B -> C) (a : Update A) (b : Update B) : Update C :=
   fun map =>
     match (a map, b map) with
     | ((a, n1), (b, n2)) => (f a b, Nat.max n1 n2)
     end.
 
-Definition getDB (v : var) : DB val :=
+Definition getUpdate (v : var) : Update val :=
   fun map => (map v, 1).
 
 Goal forall {A B C : Set} (f : A -> B -> C) a b,
-    forall m, parDB f a b m = parDB (flip f) b a m.
+    forall m, parUpdate f a b m = parUpdate (flip f) b a m.
 Proof.
-  intros. unfold parDB.
+  intros. unfold parUpdate.
   remember (a m) as am. remember (b m) as bm.
   destruct am; destruct bm. unfold flip.
   f_equal. apply Nat.max_comm.
@@ -128,41 +115,41 @@ Definition numFetchName : nat := 0.
     compose their interpretation together (automatically composed via
     the [AdverbAlgSum] instance shown earlier). *)
 
-#[global] Instance NumFetchS : AdverbAlg StaticallyAdv DB numFetchName :=
+#[global] Instance NumFetchS : AdverbAlg StaticallyAdv Update numFetchName :=
   {| adverbAlg := fun _ c =>
                     match c with
                     | LiftA2 f a b =>
-                      parDB f a b
+                      parUpdate f a b
                     end
   |}.
 
-#[global] Instance NumFetchD : AdverbAlg DynamicallyAdv DB numFetchName :=
+#[global] Instance NumFetchD : AdverbAlg DynamicallyAdv Update numFetchName :=
   {| adverbAlg := fun _ c =>
                     match c with
                     | Bind m k =>
-                      bindDB m k
+                      bindUpdate m k
                     end
   |}.
 
-#[global] Instance NumFetchP : AdverbAlg PurelyAdv DB numFetchName :=
+#[global] Instance NumFetchP : AdverbAlg PurelyAdv Update numFetchName :=
   {| adverbAlg := fun _ c =>
                     match c with
-                    | Pure a => retDB a
+                    | Pure a => retUpdate a
                     end
   |}.
 
-#[global] Instance NumFetchData : AdverbAlg DataEff DB numFetchName :=
+#[global] Instance NumFetchData : AdverbAlg DataEff Update numFetchName :=
   {| adverbAlg := fun _ c =>
-                    match c in (DataEff _ N) return (DB N) with
-                    | GetData v => getDB v
+                    match c in (DataEff _ N) return (Update N) with
+                    | GetData v => getUpdate v
                     end
   |}.
 
 (** The composed interpreter. *)
 
-Definition numFetchAlg : Alg1 LanAdverbs DB := adverbAlg (name := numFetchName).
+Definition numFetchAlg : Alg1 LanAdverbs Update := adverbAlg (name := numFetchName).
 
-Definition numFetch {A : Set} : Lan A -> DB A := foldFix1 (@numFetchAlg).
+Definition numFetch {A : Set} : Lan A -> Update A := foldFix1 (@numFetchAlg).
 
 (** * Examples. *)
 

@@ -14,6 +14,7 @@ Fix/SumE.v
 Fix/WFFunctor.v
 Fix/WFInj.v
 Fix/DistinctSubFunctors.v
+Fix/SumETheories.v
 
 Fix.v
 

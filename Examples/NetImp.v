@@ -95,15 +95,13 @@ Definition process_test : command :=
 Definition process : command :=
   avar newconn ::<- accept ;;
   IFB (not (beq (deref newconn) (expr 0))) THEN
-      avar newconn_rec ::= record (deref newconn) (expr WRITING) ;;
+      avar newconn_rec ::= record (deref newconn) (expr READING) ;;
       conns ::++ newconn_rec
   END ;;
   FOR y IN conns DO
       IFB (beq (proj stateP y) (expr WRITING)) THEN
           avar r ::<- write (proj idP y) (deref s) ;;
-          IFB (beq (deref r) (expr 0)) THEN
-              deref y ::=state expr CLOSED
-          END
+          deref y ::=state expr CLOSED
       END ;;
       IFB (beq (proj stateP y) (expr READING)) THEN
           avar r ::<- read (proj idP y) ;;
@@ -388,7 +386,7 @@ Inductive commandS : Set :=
 | UpdateProjS : nat -> exp (var Connection) -> exp nat -> commandS
 | SeqS : commandS -> commandS -> commandS
 | IfS : exp bool -> commandS -> commandS -> commandS
-| StarS : commandS -> commandS
+| SomeS : commandS -> commandS
 | OrS : commandS -> commandS -> commandS
 | OneOfS : var (list (var Connection)) ->
            var (var Connection) -> commandS -> commandS
@@ -413,15 +411,13 @@ Delimit Scope spec_scope with spec.
 Definition processSpec' : commandS :=
   OrS (avar newconn ::<- accept ;;
       IFB (not (beq (deref newconn) (expr 0))) THEN
-          avar newconn_rec ::= record (deref newconn) (expr WRITING) ;;
+          avar newconn_rec ::= record (deref newconn) (expr READING) ;;
           conns ::++ newconn_rec
       END)
      (OneOfS (conns) y (
           OrS (IFB (beq (proj stateP y) (expr WRITING)) THEN
                   avar r ::<- write (proj idP y) (deref s) ;;
-                  IFB (beq (deref r) (expr 0)) THEN
-                      deref y ::=state expr CLOSED
-                  END
+                  deref y ::=state expr CLOSED
               END)
              (IFB (beq (proj stateP y) (expr READING)) THEN
                   avar r ::<- read (proj idP y) ;;
@@ -433,7 +429,7 @@ Definition processSpec' : commandS :=
                   END
                   END))).
 
-Definition processSpec := StarS processSpec'.
+Definition processSpec := SomeS processSpec'.
 
 (** * Adverbs for the specification language.
 
@@ -550,7 +546,7 @@ Fixpoint denote_command_Spec (c : commandS) : Spec unit.
   - (* If *)
     exact (@denote_expS _ e >>= (fun b => if b then denote_command_Spec c1
                                            else denote_command_Spec c2)).
-  - (* Star *)
+  - (* Some *)
     exact (@kleenePlus _ _ _ _ _ (denote_command_Spec c)).
   - (* Or *)
     exact (@kleenePlus _ _ _ _ _ (fplus (denote_command_Spec c1) (denote_command_Spec c2))).
@@ -604,16 +600,14 @@ Close Scope spec_scope.
 Definition fragmentA : command :=
   avar newconn ::<- accept ;;
   IFB (not (beq (deref newconn) (expr 0))) THEN
-      avar newconn_rec ::= record (deref newconn) (expr WRITING) ;;
+      avar newconn_rec ::= record (deref newconn) (expr READING) ;;
       conns ::++ newconn_rec
   END.
 
 Definition fragmentB : command :=
   IFB (beq (proj stateP y) (expr WRITING)) THEN
     avar r ::<- write (proj idP y) (deref s) ;;
-    IFB (beq (deref r) (expr 0)) THEN
-      deref y ::=state expr CLOSED
-    END
+    deref y ::=state expr CLOSED
   END.
 
 Definition fragmentC : command :=
@@ -676,16 +670,14 @@ Open Scope spec_scope.
 Definition fragmentAS : commandS :=
   avar newconn ::<- accept ;;
   IFB (not (beq (deref newconn) (expr 0))) THEN
-      avar newconn_rec ::= record (deref newconn) (expr WRITING) ;;
+      avar newconn_rec ::= record (deref newconn) (expr READING) ;;
       conns ::++ newconn_rec
   END.
 
 Definition fragmentBS : commandS :=
   IFB (beq (proj stateP y) (expr WRITING)) THEN
     avar r ::<- write (proj idP y) (deref s) ;;
-    IFB (beq (deref r) (expr 0)) THEN
-      deref y ::=state expr CLOSED
-    END
+    deref y ::=state expr CLOSED
   END.
 
 Definition fragmentCS : commandS :=
@@ -828,7 +820,7 @@ Qed.
 (** * The fourth layer. *)
 
 Definition process_l4 :=
-  StarS (OrS fragmentAS (OneOfS conns y (OrS fragmentBS fragmentCS))).
+  SomeS (OrS fragmentAS (OneOfS conns y (OrS fragmentBS fragmentCS))).
 
 Lemma refinesL4 :
   (@denote_command_Spec process_l3) ⊆ (@denote_command_Spec process_l4).

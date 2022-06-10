@@ -84,38 +84,6 @@ Variables P Q R : (forall (A : Set), relation (F A)) -> forall (A : Set), relati
 
 End InjRelRules.
 
-(** * The composition algebras. *)
-
-Definition Sum1_Comm {F G : (Set -> Set) -> Set -> Set}
-           {E : Set -> Set} {A : Set}
-           (a : (F ⊕ G) E A) : (G ⊕ F) E A :=
-  match a with
-  | Inl1 f => Inr1 f
-  | Inr1 g => Inl1 g
-  end.
-
-Definition Sum1_Assoc {F G I : (Set -> Set) -> Set -> Set}
-           {E : Set -> Set} {A : Set}
-           (a : (F ⊕ G ⊕ I) E A) : ((F ⊕ G) ⊕ I) E A :=
-  match a with
-  | Inl1 f => Inl1 (Inl1 f)
-  | Inr1 b => match b with
-             | Inl1 g => Inl1 (Inr1 g)
-             | Inr1 i => Inr1 i
-             end
-  end.
-
-Definition Sum1_Assoc_inverse {F G I : (Set -> Set) -> Set -> Set}
-           {E : Set -> Set} {A : Set}
-           (a : ((F ⊕ G) ⊕ I) E A) : (F ⊕ G ⊕ I) E A :=
-  match a with
-  | Inr1 i => Inr1 (Inr1 i)
-  | Inl1 b => match b with
-             | Inl1 f => Inl1 f
-             | Inr1 g => Inr1 (Inl1 g)
-             end
-  end.
-
 (** * Some other useful rules. *)
 
 Definition Inj1_Sum1_l_rev {F G H} `{F ⊕ G -≪ H} : F -≪ H :=
