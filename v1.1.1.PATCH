@@ -1,0 +1,467 @@
+diff --git a/Adverb/Composable/Conditionally.v b/Adverb/Composable/Conditionally.v
+index 7626bfa..f944194 100644
+--- a/Adverb/Composable/Conditionally.v
++++ b/Adverb/Composable/Conditionally.v
+@@ -29,15 +29,15 @@ Local Ltac solve :=
+ Local Obligation Tactic := solve.
+ 
+ Variant ConditionallyAdv (K : Set -> Set) (R : Set) : Set :=
+-| Branch : forall {X Y : Set}, K (sum X Y) -> K (X -> R) -> K (Y -> R)
+-    -> ConditionallyAdv K R.
++  | SelectBy : forall {X Y : Set} (f : X -> ((Y -> R) + R)),
++      K X -> K Y -> ConditionallyAdv K R.
+ 
+-Arguments Branch {_}{_}{_}{_}.
++Arguments SelectBy {_}{_}{_}{_}.
+ 
+ #[export] Program Instance Functor1__ConditionallyAdv : Functor1 ConditionallyAdv :=
+   {| fmap1 := fun s s0 s1 f x =>
+        match x with
+-       | Branch g a b => Branch (f _ g) (f _ a) (f _ b)
++       | SelectBy g a b => SelectBy g (f _ a) (f _ b)
+        end
+   |}.
+ 
+@@ -46,25 +46,50 @@ Section ConditionallyAdv.
+ Section SmartConstructors.
+ 
+   Variable E : (Set -> Set) -> Set -> Set.
+-  Variable A B C : Set.
+   Context `{ConditionallyAdv -≪ E} `{PurelyAdv -≪ E} `{StaticallyAdv -≪ E} `{Functor1 E}.
+ 
+-  Definition branch_fa {X Y A : Set} (a : Fix1 E (sum X Y)) (b:Fix1 E (X -> A)) (c:Fix1 E (Y -> A)) :
++  Definition selectBy {X Y A : Set} (f : X -> ((Y -> A) + A))
++    (a : Fix1 E X) (b : Fix1 E Y) :
+     Fix1 E A :=
+-    @inF1 _ _ _ (inj1 (Branch a b c)).
++    @inF1 _ _ _ (inj1 (SelectBy f a b)).
+ 
+-Arguments branch_fa {_} {_}{_}.
++  Arguments selectBy {_} {_} {_}.
++
++  Definition select {X Y : Set} : Fix1 E (X + Y) -> Fix1 E (X -> Y) -> Fix1 E Y :=
++    selectBy (fun x => match x with
++                    | inl x => inl (fun y => y x)
++                    | inr y => inr y
++                    end).
++
++  Arguments select {_} {_}.
++
++  Definition fmap {X Y : Set} (f : X -> Y) (x : Fix1 E X) : Fix1 E Y :=
++    selectBy inl (pure f) x.
++
++  Arguments fmap {_} {_}.
++
++  Definition fmapSum {A B C} (f : A -> B) (a : sum C A) : sum C B :=
++  match a with
++  | inl c => inl c
++  | inr a => inr (f a)
++  end.
++
++  Definition branch {X Y A : Set}
++    (a : Fix1 E (X + Y)) (b : Fix1 E (X -> A)) (c : Fix1 E (Y -> A)) :
++    Fix1 E A :=
++    select (select (fmap (fmapSum inl) a) (fmap (fun f a => inr (f a)) b)) c.
++
++  Arguments branch {_} {_} {_}.
+ 
+   Definition ifS {A} (b : Fix1 E bool) (t e : Fix1 E A) : Fix1 E A :=
+-    branch_fa (fmap (fun b : bool => if b then inl tt else inr tt) b)
++    branch (fmap (fun b : bool => if b then inl tt else inr tt) b)
+            (fmap (fun a _ => a) t) (fmap (fun a _ => a) e).
+ 
+-Arguments ifS {_}.
++  Arguments ifS {_}.
+ 
+   Definition pand (x y : Fix1 E bool) : Fix1 E bool :=
+     ifS x y (pure false).
+ 
+-
+ End SmartConstructors.
+ 
+ End ConditionallyAdv.
+diff --git a/Adverb/Composable/Statically.v b/Adverb/Composable/Statically.v
+index f3fe5c4..3cb525d 100644
+--- a/Adverb/Composable/Statically.v
++++ b/Adverb/Composable/Statically.v
+@@ -28,7 +28,7 @@ Local Ltac solve :=
+ Local Obligation Tactic := solve.
+ 
+ Variant StaticallyAdv (K : Set -> Set) (R : Set) : Set :=
+-| LiftA2 {X Y : Set} (f : X -> Y -> R)(g : K X) (a : K Y).
++| LiftA2 {X Y : Set} (f : X -> Y -> R) (g : K X) (a : K Y).
+ 
+ Arguments LiftA2 {_} {_} {_} {_}.
+ 
+diff --git a/Adverb/Conditionally.v b/Adverb/Conditionally.v
+index bbd13b4..e969566 100644
+--- a/Adverb/Conditionally.v
++++ b/Adverb/Conditionally.v
+@@ -184,13 +184,14 @@ Theorem soundness_of_conditionally :
+            (monaddict_monad _ D)}
+     {_ : @MonadCongruenceLaws I EqI (monaddict_functor _ D)
+            (monaddict_applicative _ D) (monaddict_monad _ D)}
+-    (interpE : forall A, E A -> I A) (x y : ReifiedSelective E A)
+-    (Hbisim : Bisim (Adverb:=ReifiedConditionally__Adverb) x y),
++    (interpE : forall A, E A -> I A) (x y : ReifiedSelective E A),
++    (* The theorem states that [Bisim] is an under-approximation of
++       [EqI]. *)
++    Bisim (Adverb:=ReifiedConditionally__Adverb) x y ->
+     EqI _ (interp (C0:=D)(EqI:=EqI)(AdverbSim:=ReifiedSelectiveSim) interpE x)
+       (interp (C0:=D)(EqI:=EqI)(AdverbSim:=ReifiedSelectiveSim) interpE y).
+ Proof.
+-  intros.
+-  induction Hbisim.
++  intros until y. intro Hbisim. induction Hbisim.
+   - unfold interp. cbn.
+     apply bind_cong.
+     + apply H1.
+diff --git a/Adverb/Dynamically.v b/Adverb/Dynamically.v
+index 9619bbd..5cdf4aa 100644
+--- a/Adverb/Dynamically.v
++++ b/Adverb/Dynamically.v
+@@ -117,11 +117,12 @@ Theorem soundness_of_dynamically :
+     {D : Monad__Dict I}
+     {_ : @MonadLaws I EqI (monaddict_functor _ D) (monaddict_applicative _ D) (monaddict_monad _ D)}
+     {_ : @MonadCongruenceLaws I EqI (monaddict_functor _ D) (monaddict_applicative _ D) (monaddict_monad _ D)}
+-    (interpE : forall A, E A -> I A) (x y : ReifiedMonad E A)
+-    (Hbisim : x ≅ y),
++    (interpE : forall A, E A -> I A) (x y : ReifiedMonad E A),
++    (* The theorem states that [≅] is an under-approximation of [EqI]. *)
++    x ≅ y ->
+     EqI _ (interp (C0:=D)(EqI:=EqI) interpE x) (interp (C0:=D)(EqI:=EqI) interpE y).
+ Proof.
+-  intros. induction Hbisim.
++  intros until y. induction 1.
+   - unfold interp. cbn.
+     apply bind_cong; assumption.
+   - unfold interp. cbn.
+diff --git a/Adverb/Nondeterministically.v b/Adverb/Nondeterministically.v
+index cab8720..6626497 100644
+--- a/Adverb/Nondeterministically.v
++++ b/Adverb/Nondeterministically.v
+@@ -105,11 +105,13 @@ Theorem soundness_of_nondeterministically_eq :
+     {EqI : forall (A : Type), relation (I A) } `{forall A, Equivalence (EqI A) }
+     {D : Functor I} {D' : FunctorPlus__Dict I}
+     {_ : @FunctorLaws I EqI D}
+-    (interpE : forall A, E A -> I A) (x y : ReifiedPlus E A)
+-    (Hbisim : x ≅ y),
++    (interpE : forall A, E A -> I A) (x y : ReifiedPlus E A),
++    (* The theorem states that [≅] is an under-approximation of
++       [EqPowerSet]. *)
++    x ≅ y ->
+     EqPowerSet (interp (C0:=D')(EqI:=EqI) interpE x) (interp (C0:=D')(EqI:=EqI) interpE y).
+ Proof.
+-  intros. induction Hbisim.
++  intros until y. intro Hbisim. induction Hbisim.
+   - unfold interp. cbn.
+     unfold plusPowerSet, EqPowerSet. intros a. split.
+     + destruct 1.
+@@ -134,11 +136,13 @@ Theorem soundness_of_nondeterministically_refines :
+     {EqI : forall (A : Type), relation (I A) } `{forall A, Equivalence (EqI A) }
+     {D : Functor I} {D' : FunctorPlus__Dict I}
+     {_ : @FunctorLaws I EqI D}
+-    (interpE : forall A, E A -> I A) (x y : ReifiedPlus E A)
+-    (Hrefines : x ⊆ y),
++    (interpE : forall A, E A -> I A) (x y : ReifiedPlus E A),
++    (* The theorem states that [⊆] is an under-approximation of
++       [RefinesPowerSet]. *)
++    x ⊆ y ->
+     RefinesPowerSet (interp (C0:=D')(EqI:=EqI) interpE x) (interp (C0:=D')(EqI:=EqI) interpE y).
+ Proof.
+-  intros. induction Hrefines.
++  intros until y. induction 1.
+   - unfold interp. cbn.
+     pose proof (@soundness_of_nondeterministically_eq E I A EqI H D D' H0
+                   interpE a b H1).
+diff --git a/Adverb/Repeatedly.v b/Adverb/Repeatedly.v
+index 678f397..e7d8f64 100644
+--- a/Adverb/Repeatedly.v
++++ b/Adverb/Repeatedly.v
+@@ -171,12 +171,14 @@ Theorem soundness_of_repeatedly_eq :
+     {_ : @ApplicativeCongruenceLaws I EqI
+            (apdict_functor _ (applicativePart D))
+            (apdict_applicative _ (applicativePart D))}
+-    (interpE : forall A, E A -> I A) (x y : ReifiedKleenePlus E A)
+-    (Hbisim : x ≅ y),
++    (interpE : forall A, E A -> I A) (x y : ReifiedKleenePlus E A),
++    (* The theorem states that [≅] is an under-approximation of
++       [EqPowerSetI]. *)
++    x ≅ y ->
+     EqPowerSetI (interpI (C0:=D) interpE x) (interpI (C0:=D) interpE y).
+ Proof.
+-  intros. destruct D as [DA DK].
+-  induction Hbisim.
++  intros until y. destruct D as [DA DK].
++  intro Hbisim. induction Hbisim.
+   - unfold interp. cbn.
+     pose proof (@liftA2_cong (PowerSetI I EqI) (@EqPowerSetI I EqI)
+                   (@Functor__PowerSetIKleenePlus _
+@@ -298,11 +300,13 @@ Theorem soundness_of_repeatedly_refines :
+     {_ : @ApplicativeCongruenceLaws I EqI
+            (apdict_functor _ (applicativePart D))
+            (apdict_applicative _ (applicativePart D))}
+-    (interpE : forall A, E A -> I A) (x y : ReifiedKleenePlus E A)
+-    (Hrefines : x ⊆ y),
++    (interpE : forall A, E A -> I A) (x y : ReifiedKleenePlus E A),
++    (* The theorem states that [⊆] is an under-approximation of
++       [RefinesPowerSet]. *)
++    x ⊆ y ->
+     RefinesPowerSetI (interpI (C0:=D) interpE x) (interpI (C0:=D) interpE y).
+ Proof.
+-  intros. induction Hrefines.
++  intros until y. intro Hrefines. induction Hrefines.
+   - unfold interpI. cbn.
+     pose proof (@soundness_of_repeatedly_eq E I A EqI EqIEq D _ _
+                   interpE a b H1).
+diff --git a/Adverb/Statically.v b/Adverb/Statically.v
+index 50ee9c0..d1ff419 100644
+--- a/Adverb/Statically.v
++++ b/Adverb/Statically.v
+@@ -153,12 +153,13 @@ Theorem soundness_of_statically :
+     {D : Applicative__Dict I}
+     {_ : @ApplicativeLaws I EqI (apdict_functor _ D) (apdict_applicative _ D)}
+     {_ : @ApplicativeCongruenceLaws I EqI (apdict_functor _ D) (apdict_applicative _ D)}
+-    (interpE : forall A, E A -> I A) (x y : ReifiedApp E A)
+-    (Hbisim : x ≅ y),
++    (interpE : forall A, E A -> I A) (x y : ReifiedApp E A),
++    (* The theorem states that [≅] is an under-approximation of [EqI]. *)
++    x ≅ y ->
+     EqI _ (interp (C0:=D)(EqI:=EqI) interpE x) (interp (C0:=D)(EqI:=EqI) interpE y).
+ (* end statically_soundness *)
+ Proof.
+-  intros. induction Hbisim.
++  intros until y. induction 1.
+   - unfold interp. cbn.
+     apply liftA2_cong; assumption.
+   - unfold interp. cbn.
+diff --git a/Adverb/StaticallyInParallel.v b/Adverb/StaticallyInParallel.v
+index dd74d35..c88b5d1 100644
+--- a/Adverb/StaticallyInParallel.v
++++ b/Adverb/StaticallyInParallel.v
+@@ -92,12 +92,14 @@ Theorem soundness_of_staticallyInParallel :
+     {D : Applicative__Dict I}
+     {_ : @ApplicativeLaws I EqI (apdict_functor _ D) (apdict_applicative _ D)}
+     {_ : @ApplicativeCongruenceLaws I EqI (apdict_functor _ D) (apdict_applicative _ D)}
+-    (interpE : forall A, E A -> I A) (x y : ReifiedApp E A)
+-    (Hbisim : x ≅ y),
++    (interpE : forall A, E A -> I A) (x y : ReifiedApp E A),
++    (* The theorem states that [≅] is an under-approximation of
++       [EqPowerSetI]. *)
++    x ≅ y ->
+     EqPowerSetI (interpI (C0:=D) interpE x) (interpI (C0:=D) interpE y).
+ (* end staticallyInParallel_soundness *)
+ Proof.
+-  intros. induction Hbisim.
++  intros until y. induction 1.
+   - unfold interp. cbn.
+     pose proof (@liftA2_cong (PowerSetI I EqI) (@EqPowerSetI I EqI)
+                   (@Functor__PowerSetIApplicative I
+diff --git a/Adverb/Streamingly.v b/Adverb/Streamingly.v
+index efaa56a..b7c1bde 100644
+--- a/Adverb/Streamingly.v
++++ b/Adverb/Streamingly.v
+@@ -91,11 +91,12 @@ Theorem soundness_of_streamingly :
+     {D : Functor I}
+     {_ : @FunctorLaws I EqI D}
+     {_ : @FunctorCongruenceLaws I EqI D}
+-    (interpE : forall A, E A -> I A) (x y : ReifiedFunctor E A)
+-    (Hbisim : x ≅ y),
++    (interpE : forall A, E A -> I A) (x y : ReifiedFunctor E A),
++    (* The theorem states that [≅] is an under-approximation of [EqI]. *)
++    x ≅ y ->
+     EqI _ (interp (C0:=D)(EqI:=EqI) interpE x) (interp (C0:=D)(EqI:=EqI) interpE y).
+ Proof.
+-  intros. induction Hbisim.
++  intros until y. induction 1.
+   - unfold interp. cbn.
+     apply fmap_cong; assumption.
+   - unfold interp. cbn.
+diff --git a/Examples/Haxl.v b/Examples/Haxl.v
+index 46bfac7..8b4f182 100644
+--- a/Examples/Haxl.v
++++ b/Examples/Haxl.v
+@@ -66,7 +66,7 @@ Definition Lan := Fix1 LanAdverbs.
+ 
+ (** * The Update monad
+ 
+-    As shown in Fig. 14. *)
++    As shown in Fig. 14a. *)
+ 
+ Definition Update (A : Set) : Set := ((var -> val) -> A * nat).
+ 
+@@ -91,6 +91,7 @@ Definition parUpdate {A B C : Set}
+     | ((a, n1), (b, n2)) => (f a b, Nat.max n1 n2)
+     end.
+ 
++(* [getUpdate] is [get] in Fig. 14a. *)
+ Definition getUpdate (v : var) : Update val :=
+   fun map => (map v, 1).
+ 
+@@ -103,19 +104,35 @@ Proof.
+   f_equal. apply Nat.max_comm.
+ Qed.
+ 
++Definition MonadDict__Update : Monad__Dict Update :=
++  (* [bindUpdate] is [bind] in Fig. 14a. *)
++  {| op_zgzg____ := fun _ _ m k => bindUpdate m (fun _ => k) ;
++     op_zgzgze____ := fun _ _ => bindUpdate ;
++  (* [retUpdate] is [ret] in Fig. 14a. *)
++     return___ := fun _ => retUpdate
++  |}.
++
++Definition ApDict__Update : Applicative__Dict Update :=
++  (* [parUpdate] is [liftA2] in Fig. 14a. *)
++  {| liftA2__ := fun _ _ _ => parUpdate ;
++     op_zlztzg____ := fun _ _ => parUpdate id ;
++     op_ztzg____ := fun _ _ => parUpdate (fun _ => id) ;
++     pure__ := fun _ => retUpdate
++  |}.
++
+ (** Give a name to [AdverbAlg], a technical way to tell apart
+     different adverb interpretations. *)
+ 
+-Definition numFetchName : nat := 0.
++Definition costName : nat := 0.
+ 
+ (** * Interpreting Composed Adverbs
+ 
+-    We define the interpreter of our composed adverb [LanAdverbs] by
+-    defining an interpretation for each individual adverb and then
+-    compose their interpretation together (automatically composed via
+-    the [AdverbAlgSum] instance shown earlier). *)
++    Fig. 14b. We define the interpreter of our composed adverb [LanAdverbs] by
++    defining an interpretation for each individual adverb and then compose their
++    interpretation together (automatically composed via the [AdverbAlgSum]
++    instance shown earlier). *)
+ 
+-#[global] Instance NumFetchS : AdverbAlg StaticallyAdv Update numFetchName :=
++#[global] Instance CostApp : AdverbAlg StaticallyAdv Update costName :=
+   {| adverbAlg := fun _ c =>
+                     match c with
+                     | LiftA2 f a b =>
+@@ -123,7 +140,7 @@ Definition numFetchName : nat := 0.
+                     end
+   |}.
+ 
+-#[global] Instance NumFetchD : AdverbAlg DynamicallyAdv Update numFetchName :=
++#[global] Instance CostMonad : AdverbAlg DynamicallyAdv Update costName :=
+   {| adverbAlg := fun _ c =>
+                     match c with
+                     | Bind m k =>
+@@ -131,14 +148,14 @@ Definition numFetchName : nat := 0.
+                     end
+   |}.
+ 
+-#[global] Instance NumFetchP : AdverbAlg PurelyAdv Update numFetchName :=
++#[global] Instance CostPure : AdverbAlg PurelyAdv Update costName :=
+   {| adverbAlg := fun _ c =>
+                     match c with
+                     | Pure a => retUpdate a
+                     end
+   |}.
+ 
+-#[global] Instance NumFetchData : AdverbAlg DataEff Update numFetchName :=
++#[global] Instance CostData : AdverbAlg DataEff Update costName :=
+   {| adverbAlg := fun _ c =>
+                     match c in (DataEff _ N) return (Update N) with
+                     | GetData v => getUpdate v
+@@ -147,9 +164,9 @@ Definition numFetchName : nat := 0.
+ 
+ (** The composed interpreter. *)
+ 
+-Definition numFetchAlg : Alg1 LanAdverbs Update := adverbAlg (name := numFetchName).
++Definition costAlg : Alg1 LanAdverbs Update := adverbAlg (name := costName).
+ 
+-Definition numFetch {A : Set} : Lan A -> Update A := foldFix1 (@numFetchAlg).
++Definition cost {A : Set} : Lan A -> Update A := foldFix1 (@costAlg).
+ 
+ (** * Examples. *)
+ 
+@@ -166,11 +183,11 @@ Definition test3 : Lan bool := liftA2 (fun _ _ => true)
+ (** Uncomment the following to see results: *)
+ 
+ (*
+-Compute (numFetch (@test1)).
++Compute (cost (@test1)).
+ 
+-Compute (numFetch (@test2)).
++Compute (cost (@test2)).
+ 
+-Compute (numFetch (@test3)).
++Compute (cost (@test3)).
+ *)
+ 
+ (* cost (the second value in the product) of [test1] should be 1 *)
+diff --git a/Examples/NetImp.v b/Examples/NetImp.v
+index 85988f7..d8a9b8f 100644
+--- a/Examples/NetImp.v
++++ b/Examples/NetImp.v
+@@ -305,7 +305,6 @@ Fixpoint denote_command (c : command) : Lan unit.
+   - (* Seq *)
+     exact (denote_command c1 >> denote_command c2).
+   - (* If *)
+-    (* FIXME: use [Conditionally] *)
+     exact (@denote_exp _ e >>= (fun b => if b then denote_command c1
+                                       else denote_command c2)).
+   - (* For *)
+diff --git a/Examples/Section2.v b/Examples/Section2.v
+index c15edd6..b5957c0 100644
+--- a/Examples/Section2.v
++++ b/Examples/Section2.v
+@@ -276,10 +276,10 @@ Inductive eq_FreerMonad {E}{A} : FreerMonad E A -> FreerMonad E A -> Prop :=
+ 
+ 
+ Example lemma1 : eq_FreerMonad (monad_denote term1) (monad_denote term2).
+-cbn.
+-eapply eq_Bind.
++cbn. eapply eq_Bind.
+ intro x.
+-(* Not provable. Intentionally abort. *)
++(* There is no law that allows us to reason about an [GetData] on one side but
++   not on the other side, so this is not provable. Abort. *)
+ Abort.
+ 
+ Example lemma2 : eq_FreerMonad (monad_denote term3) (monad_denote term2).
+@@ -293,7 +293,10 @@ Example lemma3 : forall x y,  eq_FreerMonad (monad_denote (And x y)) (monad_deno
+ Proof.
+ intros.
+ cbn.
+-(* Not provable. Intentionally abort. *)
++induction x; induction y.
++- cbn.
++  (* There is no law for reasoning about [GetData] with different references
++  on two sides, so this is not provable. Abort. *)
+ Abort.
+ 
+ 
+@@ -351,8 +354,9 @@ Inductive eq_ReifiedApp {E R} : ReifiedApp E R -> ReifiedApp E R -> Prop :=
+   | eq_ReifiedApp_Refl : forall  (a: ReifiedApp E R), eq_ReifiedApp a a
+   | eq_ReifiedApp_Sym : forall  (a b: ReifiedApp E R), eq_ReifiedApp a b -> eq_ReifiedApp b a
+   | eq_ReifiedApp_Trans : forall  (a b c: ReifiedApp E R), eq_ReifiedApp a b -> eq_ReifiedApp b c -> eq_ReifiedApp a c
+-
+   | Congruence : forall {X Y} (f: X -> Y -> R) v1 v2 g1 g2,
++      eq_ReifiedApp v1 v2 ->
++      eq_ReifiedApp g1 g2 ->
+       eq_ReifiedApp (LiftA2 f v1 g1) (LiftA2 f v2 g2)
+   | LeftIdentity : forall {X} (a: X) (b: ReifiedApp E R) f,
+       (forall y, (fun _ x => x) a y = f a y) ->
+@@ -369,6 +373,10 @@ Inductive eq_ReifiedApp {E R} : ReifiedApp E R -> ReifiedApp E R -> Prop :=
+ (* Cannot show, as desired. *)
+ Example lemma1 : eq_ReifiedApp (toReifiedApp term1) (toReifiedApp term2).
+ cbn.
++(* There is no law for us to reason about two [EmbedA] on one side and one
++   [EmbedA] on the other side---the closest are the two identity laws
++   [LetfIdentity] and [RightIdentity] but they do not have two [EmbedA]s on
++   one side, either. Not provable. Abort. *)
+ Abort.
+ 
+ Example lemma2 : eq_ReifiedApp (toReifiedApp term3) (toReifiedApp term2).
+@@ -471,6 +479,7 @@ Theorem assoc : forall (x y a b : var),
+       (toReifiedApp (And (And (Var x) (Var y)) (And (Var a) (Var b)))).
+ Proof.
+   intros. cbn.
++  (* No associativity law. Not provable. Abort. *)
+ Abort.
+ 
+ (* Indeed, there exists a cost semantics where associativity is not desired. *)
