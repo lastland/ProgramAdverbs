@@ -105,11 +105,13 @@ Theorem soundness_of_nondeterministically_eq :
     {EqI : forall (A : Type), relation (I A) } `{forall A, Equivalence (EqI A) }
     {D : Functor I} {D' : FunctorPlus__Dict I}
     {_ : @FunctorLaws I EqI D}
-    (interpE : forall A, E A -> I A) (x y : ReifiedPlus E A)
-    (Hbisim : x ≅ y),
+    (interpE : forall A, E A -> I A) (x y : ReifiedPlus E A),
+    (* The theorem states that [≅] is an under-approximation of
+       [EqPowerSet]. *)
+    x ≅ y ->
     EqPowerSet (interp (C0:=D')(EqI:=EqI) interpE x) (interp (C0:=D')(EqI:=EqI) interpE y).
 Proof.
-  intros. induction Hbisim.
+  intros until y. intro Hbisim. induction Hbisim.
   - unfold interp. cbn.
     unfold plusPowerSet, EqPowerSet. intros a. split.
     + destruct 1.
@@ -134,11 +136,13 @@ Theorem soundness_of_nondeterministically_refines :
     {EqI : forall (A : Type), relation (I A) } `{forall A, Equivalence (EqI A) }
     {D : Functor I} {D' : FunctorPlus__Dict I}
     {_ : @FunctorLaws I EqI D}
-    (interpE : forall A, E A -> I A) (x y : ReifiedPlus E A)
-    (Hrefines : x ⊆ y),
+    (interpE : forall A, E A -> I A) (x y : ReifiedPlus E A),
+    (* The theorem states that [⊆] is an under-approximation of
+       [RefinesPowerSet]. *)
+    x ⊆ y ->
     RefinesPowerSet (interp (C0:=D')(EqI:=EqI) interpE x) (interp (C0:=D')(EqI:=EqI) interpE y).
 Proof.
-  intros. induction Hrefines.
+  intros until y. induction 1.
   - unfold interp. cbn.
     pose proof (@soundness_of_nondeterministically_eq E I A EqI H D D' H0
                   interpE a b H1).

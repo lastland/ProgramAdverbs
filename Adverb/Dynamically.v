@@ -117,11 +117,12 @@ Theorem soundness_of_dynamically :
     {D : Monad__Dict I}
     {_ : @MonadLaws I EqI (monaddict_functor _ D) (monaddict_applicative _ D) (monaddict_monad _ D)}
     {_ : @MonadCongruenceLaws I EqI (monaddict_functor _ D) (monaddict_applicative _ D) (monaddict_monad _ D)}
-    (interpE : forall A, E A -> I A) (x y : ReifiedMonad E A)
-    (Hbisim : x ≅ y),
+    (interpE : forall A, E A -> I A) (x y : ReifiedMonad E A),
+    (* The theorem states that [≅] is an under-approximation of [EqI]. *)
+    x ≅ y ->
     EqI _ (interp (C0:=D)(EqI:=EqI) interpE x) (interp (C0:=D)(EqI:=EqI) interpE y).
 Proof.
-  intros. induction Hbisim.
+  intros until y. induction 1.
   - unfold interp. cbn.
     apply bind_cong; assumption.
   - unfold interp. cbn.

@@ -92,12 +92,14 @@ Theorem soundness_of_staticallyInParallel :
     {D : Applicative__Dict I}
     {_ : @ApplicativeLaws I EqI (apdict_functor _ D) (apdict_applicative _ D)}
     {_ : @ApplicativeCongruenceLaws I EqI (apdict_functor _ D) (apdict_applicative _ D)}
-    (interpE : forall A, E A -> I A) (x y : ReifiedApp E A)
-    (Hbisim : x ≅ y),
+    (interpE : forall A, E A -> I A) (x y : ReifiedApp E A),
+    (* The theorem states that [≅] is an under-approximation of
+       [EqPowerSetI]. *)
+    x ≅ y ->
     EqPowerSetI (interpI (C0:=D) interpE x) (interpI (C0:=D) interpE y).
 (* end staticallyInParallel_soundness *)
 Proof.
-  intros. induction Hbisim.
+  intros until y. induction 1.
   - unfold interp. cbn.
     pose proof (@liftA2_cong (PowerSetI I EqI) (@EqPowerSetI I EqI)
                   (@Functor__PowerSetIApplicative I

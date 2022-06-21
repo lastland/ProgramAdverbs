@@ -184,13 +184,14 @@ Theorem soundness_of_conditionally :
            (monaddict_monad _ D)}
     {_ : @MonadCongruenceLaws I EqI (monaddict_functor _ D)
            (monaddict_applicative _ D) (monaddict_monad _ D)}
-    (interpE : forall A, E A -> I A) (x y : ReifiedSelective E A)
-    (Hbisim : Bisim (Adverb:=ReifiedConditionally__Adverb) x y),
+    (interpE : forall A, E A -> I A) (x y : ReifiedSelective E A),
+    (* The theorem states that [Bisim] is an under-approximation of
+       [EqI]. *)
+    Bisim (Adverb:=ReifiedConditionally__Adverb) x y ->
     EqI _ (interp (C0:=D)(EqI:=EqI)(AdverbSim:=ReifiedSelectiveSim) interpE x)
       (interp (C0:=D)(EqI:=EqI)(AdverbSim:=ReifiedSelectiveSim) interpE y).
 Proof.
-  intros.
-  induction Hbisim.
+  intros until y. intro Hbisim. induction Hbisim.
   - unfold interp. cbn.
     apply bind_cong.
     + apply H1.

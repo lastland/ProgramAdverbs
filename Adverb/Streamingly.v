@@ -91,11 +91,12 @@ Theorem soundness_of_streamingly :
     {D : Functor I}
     {_ : @FunctorLaws I EqI D}
     {_ : @FunctorCongruenceLaws I EqI D}
-    (interpE : forall A, E A -> I A) (x y : ReifiedFunctor E A)
-    (Hbisim : x ≅ y),
+    (interpE : forall A, E A -> I A) (x y : ReifiedFunctor E A),
+    (* The theorem states that [≅] is an under-approximation of [EqI]. *)
+    x ≅ y ->
     EqI _ (interp (C0:=D)(EqI:=EqI) interpE x) (interp (C0:=D)(EqI:=EqI) interpE y).
 Proof.
-  intros. induction Hbisim.
+  intros until y. induction 1.
   - unfold interp. cbn.
     apply fmap_cong; assumption.
   - unfold interp. cbn.

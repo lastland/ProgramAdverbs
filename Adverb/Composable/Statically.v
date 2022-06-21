@@ -28,7 +28,7 @@ Local Ltac solve :=
 Local Obligation Tactic := solve.
 
 Variant StaticallyAdv (K : Set -> Set) (R : Set) : Set :=
-| LiftA2 {X Y : Set} (f : X -> Y -> R)(g : K X) (a : K Y).
+| LiftA2 {X Y : Set} (f : X -> Y -> R) (g : K X) (a : K Y).
 
 Arguments LiftA2 {_} {_} {_} {_}.
 

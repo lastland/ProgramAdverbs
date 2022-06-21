@@ -29,15 +29,15 @@ Local Ltac solve :=
 Local Obligation Tactic := solve.
 
 Variant ConditionallyAdv (K : Set -> Set) (R : Set) : Set :=
-| Branch : forall {X Y : Set}, K (sum X Y) -> K (X -> R) -> K (Y -> R)
-    -> ConditionallyAdv K R.
+  | SelectBy : forall {X Y : Set} (f : X -> ((Y -> R) + R)),
+      K X -> K Y -> ConditionallyAdv K R.
 
-Arguments Branch {_}{_}{_}{_}.
+Arguments SelectBy {_}{_}{_}{_}.
 
 #[export] Program Instance Functor1__ConditionallyAdv : Functor1 ConditionallyAdv :=
   {| fmap1 := fun s s0 s1 f x =>
        match x with
-       | Branch g a b => Branch (f _ g) (f _ a) (f _ b)
+       | SelectBy g a b => SelectBy g (f _ a) (f _ b)
        end
   |}.
 
@@ -46,24 +46,49 @@ Section ConditionallyAdv.
 Section SmartConstructors.
 
   Variable E : (Set -> Set) -> Set -> Set.
-  Variable A B C : Set.
   Context `{ConditionallyAdv -≪ E} `{PurelyAdv -≪ E} `{StaticallyAdv -≪ E} `{Functor1 E}.
 
-  Definition branch_fa {X Y A : Set} (a : Fix1 E (sum X Y)) (b:Fix1 E (X -> A)) (c:Fix1 E (Y -> A)) :
+  Definition selectBy {X Y A : Set} (f : X -> ((Y -> A) + A))
+    (a : Fix1 E X) (b : Fix1 E Y) :
     Fix1 E A :=
-    @inF1 _ _ _ (inj1 (Branch a b c)).
+    @inF1 _ _ _ (inj1 (SelectBy f a b)).
 
-Arguments branch_fa {_} {_}{_}.
+  Arguments selectBy {_} {_} {_}.
+
+  Definition select {X Y : Set} : Fix1 E (X + Y) -> Fix1 E (X -> Y) -> Fix1 E Y :=
+    selectBy (fun x => match x with
+                    | inl x => inl (fun y => y x)
+                    | inr y => inr y
+                    end).
+
+  Arguments select {_} {_}.
+
+  Definition fmap {X Y : Set} (f : X -> Y) (x : Fix1 E X) : Fix1 E Y :=
+    selectBy inl (pure f) x.
+
+  Arguments fmap {_} {_}.
+
+  Definition fmapSum {A B C} (f : A -> B) (a : sum C A) : sum C B :=
+  match a with
+  | inl c => inl c
+  | inr a => inr (f a)
+  end.
+
+  Definition branch {X Y A : Set}
+    (a : Fix1 E (X + Y)) (b : Fix1 E (X -> A)) (c : Fix1 E (Y -> A)) :
+    Fix1 E A :=
+    select (select (fmap (fmapSum inl) a) (fmap (fun f a => inr (f a)) b)) c.
+
+  Arguments branch {_} {_} {_}.
 
   Definition ifS {A} (b : Fix1 E bool) (t e : Fix1 E A) : Fix1 E A :=
-    branch_fa (fmap (fun b : bool => if b then inl tt else inr tt) b)
+    branch (fmap (fun b : bool => if b then inl tt else inr tt) b)
            (fmap (fun a _ => a) t) (fmap (fun a _ => a) e).
 
-Arguments ifS {_}.
+  Arguments ifS {_}.
 
   Definition pand (x y : Fix1 E bool) : Fix1 E bool :=
     ifS x y (pure false).
-
 
 End SmartConstructors.
 

@@ -276,10 +276,10 @@ Inductive eq_FreerMonad {E}{A} : FreerMonad E A -> FreerMonad E A -> Prop :=
 
 
 Example lemma1 : eq_FreerMonad (monad_denote term1) (monad_denote term2).
-cbn.
-eapply eq_Bind.
+cbn. eapply eq_Bind.
 intro x.
-(* Not provable. Intentionally abort. *)
+(* There is no law that allows us to reason about an [GetData] on one side but
+   not on the other side, so this is not provable. Abort. *)
 Abort.
 
 Example lemma2 : eq_FreerMonad (monad_denote term3) (monad_denote term2).
@@ -293,7 +293,10 @@ Example lemma3 : forall x y,  eq_FreerMonad (monad_denote (And x y)) (monad_deno
 Proof.
 intros.
 cbn.
-(* Not provable. Intentionally abort. *)
+induction x; induction y.
+- cbn.
+  (* There is no law for reasoning about [GetData] with different references
+  on two sides, so this is not provable. Abort. *)
 Abort.
 
 
@@ -351,8 +354,9 @@ Inductive eq_ReifiedApp {E R} : ReifiedApp E R -> ReifiedApp E R -> Prop :=
   | eq_ReifiedApp_Refl : forall  (a: ReifiedApp E R), eq_ReifiedApp a a
   | eq_ReifiedApp_Sym : forall  (a b: ReifiedApp E R), eq_ReifiedApp a b -> eq_ReifiedApp b a
   | eq_ReifiedApp_Trans : forall  (a b c: ReifiedApp E R), eq_ReifiedApp a b -> eq_ReifiedApp b c -> eq_ReifiedApp a c
-
   | Congruence : forall {X Y} (f: X -> Y -> R) v1 v2 g1 g2,
+      eq_ReifiedApp v1 v2 ->
+      eq_ReifiedApp g1 g2 ->
       eq_ReifiedApp (LiftA2 f v1 g1) (LiftA2 f v2 g2)
   | LeftIdentity : forall {X} (a: X) (b: ReifiedApp E R) f,
       (forall y, (fun _ x => x) a y = f a y) ->
@@ -369,6 +373,10 @@ Inductive eq_ReifiedApp {E R} : ReifiedApp E R -> ReifiedApp E R -> Prop :=
 (* Cannot show, as desired. *)
 Example lemma1 : eq_ReifiedApp (toReifiedApp term1) (toReifiedApp term2).
 cbn.
+(* There is no law for us to reason about two [EmbedA] on one side and one
+   [EmbedA] on the other side---the closest are the two identity laws
+   [LetfIdentity] and [RightIdentity] but they do not have two [EmbedA]s on
+   one side, either. Not provable. Abort. *)
 Abort.
 
 Example lemma2 : eq_ReifiedApp (toReifiedApp term3) (toReifiedApp term2).
@@ -471,6 +479,7 @@ Theorem assoc : forall (x y a b : var),
       (toReifiedApp (And (And (Var x) (Var y)) (And (Var a) (Var b)))).
 Proof.
   intros. cbn.
+  (* No associativity law. Not provable. Abort. *)
 Abort.
 
 (* Indeed, there exists a cost semantics where associativity is not desired. *)

@@ -171,12 +171,14 @@ Theorem soundness_of_repeatedly_eq :
     {_ : @ApplicativeCongruenceLaws I EqI
            (apdict_functor _ (applicativePart D))
            (apdict_applicative _ (applicativePart D))}
-    (interpE : forall A, E A -> I A) (x y : ReifiedKleenePlus E A)
-    (Hbisim : x ≅ y),
+    (interpE : forall A, E A -> I A) (x y : ReifiedKleenePlus E A),
+    (* The theorem states that [≅] is an under-approximation of
+       [EqPowerSetI]. *)
+    x ≅ y ->
     EqPowerSetI (interpI (C0:=D) interpE x) (interpI (C0:=D) interpE y).
 Proof.
-  intros. destruct D as [DA DK].
-  induction Hbisim.
+  intros until y. destruct D as [DA DK].
+  intro Hbisim. induction Hbisim.
   - unfold interp. cbn.
     pose proof (@liftA2_cong (PowerSetI I EqI) (@EqPowerSetI I EqI)
                   (@Functor__PowerSetIKleenePlus _
@@ -298,11 +300,13 @@ Theorem soundness_of_repeatedly_refines :
     {_ : @ApplicativeCongruenceLaws I EqI
            (apdict_functor _ (applicativePart D))
            (apdict_applicative _ (applicativePart D))}
-    (interpE : forall A, E A -> I A) (x y : ReifiedKleenePlus E A)
-    (Hrefines : x ⊆ y),
+    (interpE : forall A, E A -> I A) (x y : ReifiedKleenePlus E A),
+    (* The theorem states that [⊆] is an under-approximation of
+       [RefinesPowerSet]. *)
+    x ⊆ y ->
     RefinesPowerSetI (interpI (C0:=D) interpE x) (interpI (C0:=D) interpE y).
 Proof.
-  intros. induction Hrefines.
+  intros until y. intro Hrefines. induction Hrefines.
   - unfold interpI. cbn.
     pose proof (@soundness_of_repeatedly_eq E I A EqI EqIEq D _ _
                   interpE a b H1).

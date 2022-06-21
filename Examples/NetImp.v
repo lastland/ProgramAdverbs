@@ -305,7 +305,6 @@ Fixpoint denote_command (c : command) : Lan unit.
   - (* Seq *)
     exact (denote_command c1 >> denote_command c2).
   - (* If *)
-    (* FIXME: use [Conditionally] *)
     exact (@denote_exp _ e >>= (fun b => if b then denote_command c1
                                       else denote_command c2)).
   - (* For *)

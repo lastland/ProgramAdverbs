@@ -66,7 +66,7 @@ Definition Lan := Fix1 LanAdverbs.
 
 (** * The Update monad
 
-    As shown in Fig. 14. *)
+    As shown in Fig. 14a. *)
 
 Definition Update (A : Set) : Set := ((var -> val) -> A * nat).
 
@@ -91,6 +91,7 @@ Definition parUpdate {A B C : Set}
     | ((a, n1), (b, n2)) => (f a b, Nat.max n1 n2)
     end.
 
+(* [getUpdate] is [get] in Fig. 14a. *)
 Definition getUpdate (v : var) : Update val :=
   fun map => (map v, 1).
 
@@ -103,19 +104,35 @@ Proof.
   f_equal. apply Nat.max_comm.
 Qed.
 
+Definition MonadDict__Update : Monad__Dict Update :=
+  (* [bindUpdate] is [bind] in Fig. 14a. *)
+  {| op_zgzg____ := fun _ _ m k => bindUpdate m (fun _ => k) ;
+     op_zgzgze____ := fun _ _ => bindUpdate ;
+  (* [retUpdate] is [ret] in Fig. 14a. *)
+     return___ := fun _ => retUpdate
+  |}.
+
+Definition ApDict__Update : Applicative__Dict Update :=
+  (* [parUpdate] is [liftA2] in Fig. 14a. *)
+  {| liftA2__ := fun _ _ _ => parUpdate ;
+     op_zlztzg____ := fun _ _ => parUpdate id ;
+     op_ztzg____ := fun _ _ => parUpdate (fun _ => id) ;
+     pure__ := fun _ => retUpdate
+  |}.
+
 (** Give a name to [AdverbAlg], a technical way to tell apart
     different adverb interpretations. *)
 
-Definition numFetchName : nat := 0.
+Definition costName : nat := 0.
 
 (** * Interpreting Composed Adverbs
 
-    We define the interpreter of our composed adverb [LanAdverbs] by
-    defining an interpretation for each individual adverb and then
-    compose their interpretation together (automatically composed via
-    the [AdverbAlgSum] instance shown earlier). *)
+    Fig. 14b. We define the interpreter of our composed adverb [LanAdverbs] by
+    defining an interpretation for each individual adverb and then compose their
+    interpretation together (automatically composed via the [AdverbAlgSum]
+    instance shown earlier). *)
 
-#[global] Instance NumFetchS : AdverbAlg StaticallyAdv Update numFetchName :=
+#[global] Instance CostApp : AdverbAlg StaticallyAdv Update costName :=
   {| adverbAlg := fun _ c =>
                     match c with
                     | LiftA2 f a b =>
@@ -123,7 +140,7 @@ Definition numFetchName : nat := 0.
                     end
   |}.
 
-#[global] Instance NumFetchD : AdverbAlg DynamicallyAdv Update numFetchName :=
+#[global] Instance CostMonad : AdverbAlg DynamicallyAdv Update costName :=
   {| adverbAlg := fun _ c =>
                     match c with
                     | Bind m k =>
@@ -131,14 +148,14 @@ Definition numFetchName : nat := 0.
                     end
   |}.
 
-#[global] Instance NumFetchP : AdverbAlg PurelyAdv Update numFetchName :=
+#[global] Instance CostPure : AdverbAlg PurelyAdv Update costName :=
   {| adverbAlg := fun _ c =>
                     match c with
                     | Pure a => retUpdate a
                     end
   |}.
 
-#[global] Instance NumFetchData : AdverbAlg DataEff Update numFetchName :=
+#[global] Instance CostData : AdverbAlg DataEff Update costName :=
   {| adverbAlg := fun _ c =>
                     match c in (DataEff _ N) return (Update N) with
                     | GetData v => getUpdate v
@@ -147,9 +164,9 @@ Definition numFetchName : nat := 0.
 
 (** The composed interpreter. *)
 
-Definition numFetchAlg : Alg1 LanAdverbs Update := adverbAlg (name := numFetchName).
+Definition costAlg : Alg1 LanAdverbs Update := adverbAlg (name := costName).
 
-Definition numFetch {A : Set} : Lan A -> Update A := foldFix1 (@numFetchAlg).
+Definition cost {A : Set} : Lan A -> Update A := foldFix1 (@costAlg).
 
 (** * Examples. *)
 
@@ -166,11 +183,11 @@ Definition test3 : Lan bool := liftA2 (fun _ _ => true)
 (** Uncomment the following to see results: *)
 
 (*
-Compute (numFetch (@test1)).
+Compute (cost (@test1)).
 
-Compute (numFetch (@test2)).
+Compute (cost (@test2)).
 
-Compute (numFetch (@test3)).
+Compute (cost (@test3)).
 *)
 
 (* cost (the second value in the product) of [test1] should be 1 *)

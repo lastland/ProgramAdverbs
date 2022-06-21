@@ -153,12 +153,13 @@ Theorem soundness_of_statically :
     {D : Applicative__Dict I}
     {_ : @ApplicativeLaws I EqI (apdict_functor _ D) (apdict_applicative _ D)}
     {_ : @ApplicativeCongruenceLaws I EqI (apdict_functor _ D) (apdict_applicative _ D)}
-    (interpE : forall A, E A -> I A) (x y : ReifiedApp E A)
-    (Hbisim : x ≅ y),
+    (interpE : forall A, E A -> I A) (x y : ReifiedApp E A),
+    (* The theorem states that [≅] is an under-approximation of [EqI]. *)
+    x ≅ y ->
     EqI _ (interp (C0:=D)(EqI:=EqI) interpE x) (interp (C0:=D)(EqI:=EqI) interpE y).
 (* end statically_soundness *)
 Proof.
-  intros. induction Hbisim.
+  intros until y. induction 1.
   - unfold interp. cbn.
     apply liftA2_cong; assumption.
   - unfold interp. cbn.
