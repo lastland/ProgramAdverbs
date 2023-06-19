@@ -1,7 +1,7 @@
 # Program Adverbs and Tlön Embeddings (artifact)
 
-This artifact contains the Coq formalization of the paper _Program
-Adverbs and Tlön Embeddings_.
+This artifact contains the Coq formalization of the paper [Program
+Adverbs and Tlön Embeddings](https://doi.org/10.1145/3547632) by Yao Li and Stephanie Weirich, published at ICFP 2022.
 
 Here is the abstract of the paper:
 
